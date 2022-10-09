@@ -5,5 +5,4 @@ Implementation of paper - Minimum-energy Cornering Trajectory Planning with Self
 
 Lifelong path planning means the robot(s) will keep receiving the target(s) to reach and, based on remaining budget(s) and estimated cost of travel, will decide whether to accept the target or ask for a different one.
 
-MTP-I will imvolve developing an algorithm for single agent\
-MTP-II will involve extending to multi-agent setting
+This is multi-agent branch where target assignment will depend on voronoi decomposition of the area centred on the agent and cost function as the energy required by agent to reach that point. The agent target within voronoi region will accept that one. In case any unmatched targets/agents remain, they will accept the next best target, outside region and less energy among all remaining ones
