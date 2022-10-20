@@ -1,96 +1,126 @@
-'''
-Plans using RIG_tree variant, basically RRT_star with info-node association
-'''
-
 import numpy as np
 from copy import deepcopy
 import matplotlib.pyplot as plt
 from shapely.geometry import Point, Polygon
+import time
 
 from parameters import *
-from voronoi import voronoi_decomposer
 
 class Agent:
     num_agents = 0
 
-    def __init__(self, start, energy, target_coords):
+    def __init__(self, energy, initial_partition):
+        '''
+        Agent class
+        Takes input as first target and generates own voronoi partition with first target as
+            voronoi centre. Stays in it's own partition unless everyone decides to 
+            re-partition based on their remaining energies
+        '''
+
         self.ID = Agent.num_agents
         Agent.num_agents += 1
 
-        self.current_node = start #env.start_points[self.ID]
-        self.energy = energy #env.budgets[self.ID]
-        self.target = target_coords
+        self.current_node = np.array([0.0, 0.0]) # Start point
+        self.energy = energy
+        self.section = initial_partition
         self.energy0 = deepcopy(self.energy)
         self.targets_reached = 0
+        self.counts = 0
 
-    def run_agent(self, coords_queue, ua_targ_list, env):
-        from_node = self.current_node
-        to_node = self.target
+    def run_agent(self, coords_queue, part, env, target):
+        '''
+        coords_queue -> queue of target coordinates remaining to be reached
+        env -> Copy of env for stepping from one point to another
+        part -> Current partition of agent
+        target -> First target, also acts as Voronoi centre of it's partition
+        '''
 
-        print('Agent ' + str(self.ID) + ' running with initial energy - ' + str(self.energy))
-        done, rem_ener, cost_f = env.step_to_target(self.ID, self.current_node, self.target, C_TYPE)
+        # First step
+        print('Agent ID ' + str(self.ID) + ' running with initial energy - ' + str(self.energy))
+        done, self.energy, wait_time = env.step_to_target(self.ID, self.current_node, target, C_TYPE, self.energy)
+        self.visualize(self.current_node, target, self.ID)
+        time.sleep(wait_time)
+        self.target = target
 
         self.targets_reached += 1
 
         while not done:
-            print('Targets achieved for agent ' + str(self.ID) + ' - ' + str(self.target))
+            print('next target for agent ' + str(self.ID) + ' - ' + str(self.target))
+            uv_targs = coords_queue.get() # Get list of unvisited targets
+            new_targs = []
 
-            self.visualize_trajectory(from_node, to_node)
-            self.current_node = self.target
+            for i in range(len(uv_targs)): # Find one target to capture
+                if Point(uv_targs[i]).within(Polygon(part)):
+                    self.target = uv_targs[i]
+                    break
 
-            kew = coords_queue.get()
-            kew[self.ID] = deepcopy(self.current_node)
-            coords_queue.put(kew)
+            for j in range(len(uv_targs)): # Find one target to capture
+                if j == i:
+                    pass
+                else:
+                    new_targs.append(uv_targs[j])
 
-            self.energy = rem_ener
-            self.target = self.get_target(kew, ua_targ_list, cost_f)
-            done, rem_ener, cost_f = env.step_to_target(self.ID, self.current_node, self.target, C_TYPE)
-            self.targets_reached += 1
+            coords_queue.put(new_targs) # Return back list for others to visit
+
+            if self.target is None:
+                env.generate_new_targets(part)
+                done = False
+            else:
+                done, self.energy, wait_time = env.step_to_target(self.ID, self.current_node, self.target, C_TYPE, self.energy)
+                time.sleep(wait_time)
+                self.visualize(self.current_node, target, self.ID)
+                self.targets_reached += 1
+                self.current_node = deepcopy(self.target)
+                self.target = None
 
         print('Targets achieved by agent ID ' + str(self.ID) + ' - ' + str(self.targets_reached))
 
-    def get_target(self, coords_q, ua_targets_list, cost_f):
-        assignent = False
+    def visualize(self, from_node, to_node, ID):
+        colours = ['lightcoral', 'firebrick', 'red', 'chocolate', 'peru', 'darkorange', 'darkgoldenrod', 'darkkhaki',
+                'olive', 'greenyellow', 'forestgreen', 'turqupise', 'teal', 'cyan', 'deepskyblue', 'lightslategray',
+                'royalblue', 'navy', 'indigo', 'darkorchid', 'plum', 'magenta', 'hotpink', 'pink']
+        agent_color = colours[ID]
 
-        centres = coords_q
-        decomposer = voronoi_decomposer(centres)
-        all_polys = []
+        x_vals = [from_node[0], to_node[0]]
+        y_vals = [from_node[1], to_node[1]]
 
-        for centre in centres:
-            all_polys.append(decomposer.get_bounding_polygon(centre))
-
-        while not assignent:
-            self_poly = Polygon(all_polys[self.ID])
-            ua_dict = ua_targets_list.get()
-            for i in range(len(ua_dict)):
-                if Point(ua_dict[i]).within(self_poly):
-
-    def visualize_trajectory(self, graph):
-        plt.figure(1)#self.ID)
-        centres = self.voronoi.centres
-        vor = Voronoi(centres)
-        voronoi_plot_2d(vor, show_vertices=False)
-
-        x_vals = self.node_coords[:,0]
-        y_vals = self.node_coords[:,1]
-
-        edge_dict = graph.edges
-
-        colors = ['indianred', 'peru', 'gold', 'olivedrab', 'lime', 'turquoise', 'aqua', 'slategrey', 'cornflowerblue', 
-                    'darkorchid', 'fuchsia', 'hotpink', 'lightpink']
-        if 1:
-            for each_node in graph.nodes:
-                connected_edges = edge_dict[str(each_node)]
-                for node, edge in connected_edges.items():
-                    if node != each_node:
-                        x_e = [x_vals[int(each_node)], x_vals[int(node)]]
-                        y_e = [y_vals[int(each_node)], y_vals[int(node)]]
-                        plt.plot(x_e, y_e, color=colors[self.ID])
-
-        plt.scatter(x_vals[0], y_vals[0], color = 'orange') # Start node, in orange
         plt.xlim(0.0, 1.0)
         plt.ylim(0.0, 1.0)
+        plt.figure(self.ID)
+        # plt.axes((1.0, 0.0, 1.0, 1.0))
 
-        path = '/home/vashisth/NUS/DomDeco_v2/max_budget__1_0/'
-        plt.suptitle('Max_Budget = 2.5, 8 agents')
-        plt.savefig(path + '_trial7__8Agents__' + str(self.ID) + '.png')
+        plt.plot(x_vals, y_vals, color=agent_color)
+        # plt.scatter(x_vals, y_vals, agent_color)
+
+        plt.savefig('test' + str(ID) + str(self.counts) + '.png')
+        self.counts += 1
+
+    # def visualize_trajectory(self, graph):
+    #     plt.figure(1)#self.ID)
+    #     centres = self.voronoi.centres
+    #     vor = Voronoi(centres)
+    #     voronoi_plot_2d(vor, show_vertices=False)
+
+    #     x_vals = self.node_coords[:,0]
+    #     y_vals = self.node_coords[:,1]
+
+    #     edge_dict = graph.edges
+
+    #     colors = ['indianred', 'peru', 'gold', 'olivedrab', 'lime', 'turquoise', 'aqua', 'slategrey', 'cornflowerblue', 
+    #                 'darkorchid', 'fuchsia', 'hotpink', 'lightpink']
+    #     if 1:
+    #         for each_node in graph.nodes:
+    #             connected_edges = edge_dict[str(each_node)]
+    #             for node, edge in connected_edges.items():
+    #                 if node != each_node:
+    #                     x_e = [x_vals[int(each_node)], x_vals[int(node)]]
+    #                     y_e = [y_vals[int(each_node)], y_vals[int(node)]]
+    #                     plt.plot(x_e, y_e, color=colors[self.ID])
+
+    #     plt.scatter(x_vals[0], y_vals[0], color = 'orange') # Start node, in orange
+    #     plt.xlim(0.0, 1.0)
+    #     plt.ylim(0.0, 1.0)
+
+    #     path = '/home/vashisth/NUS/DomDeco_v2/max_budget__1_0/'
+    #     plt.suptitle('Max_Budget = 2.5, 8 agents')
+    #     plt.savefig(path + '_trial7__8Agents__' + str(self.ID) + '.png')
