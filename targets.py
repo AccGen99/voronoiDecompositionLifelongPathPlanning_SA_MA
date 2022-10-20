@@ -10,12 +10,14 @@ class targets2D:
         self.targets = []
         self.successes = 0
 
-    def generate_targets(self):
+    def generate_targets(self, num=0):
+        if num == 0:
+            num = NUM_TARGETS
         x1 = np.linspace(0, 1, RES)
         x2 = np.linspace(0, 1, RES)
 
-        a = np.random.choice(x1, NUM_TARGETS, False).reshape(-1, 1)
-        b = np.random.choice(x2, NUM_TARGETS, False).reshape(-1, 1)
+        a = np.random.choice(x1, num, False).reshape(-1, 1)
+        b = np.random.choice(x2, num, False).reshape(-1, 1)
         self.targets = np.hstack((a, b))
         return self.targets
     
