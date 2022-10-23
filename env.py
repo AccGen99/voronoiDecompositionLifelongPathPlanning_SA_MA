@@ -1,8 +1,10 @@
+import os
 import numpy as np
 from itertools import product
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 from shapely.geometry import Polygon, Point
+import imageio
 
 from parameters import *
 from targets import targets2D
@@ -16,12 +18,15 @@ class env:
         self.num_agents = NUM_AGENTS
         self.num_targets = NUM_TARGETS
         self.start = np.array([[0.0, 0.0]])
-        self.targets = targets2D()
-        self.current_targets = self.targets.generate_targets(num=NUM_AGENTS)
+        self.target_generator = targets2D()
+        self.current_targets = self.target_generator.generate_targets(num=NUM_AGENTS)
         self.decomposer = voronoi_decomposer(self.current_targets)
+        self.current_targets = self.decomposer.get_balanced_starts_voronoi()
         self.energy = INITIAL_ENERGY
         self.agents = []
         self.counts = 0
+
+        self.frames = []
 
     def run_agents(self):
         # plt.xlim(0.0, 1.0)
@@ -31,7 +36,7 @@ class env:
 
         agent_processes = []
         agent_routes = []
-        targets = self.targets.generate_targets()
+        targets = self.target_generator.generate_targets()
         self.targets_queue = mp.Queue()
         self.targets_queue.put(targets)
         self.agent_routes = mp.Queue()
@@ -79,19 +84,13 @@ class env:
     def generate_new_targets(self, partition, generate_queue):
         targets = []
 
-        while len(targets) < 5:
+        while len(targets) < 25:
             new_targs = self.targets.generate_targets()
             for target in new_targs:
                 if Point(target).within(Polygon(partition)):
                     targets.append(target)
 
-        target_list = generate_queue.get()
-
-        for i in range(len(targets)):
-            target_list.append(targets[i])
-
-        generate_queue.put(target_list)
-        return generate_queue
+        return targets
 
     def visualize(self, data):
         plt.xlim(0.0, 1.0)
@@ -112,6 +111,12 @@ class env:
 
         elses = 0
         step = 0
+
+        for j in range(len(data)):
+            partition = Polygon(data[j].partition)
+            # x, y = partition.exterior.xy
+            plt.plot(*partition.exterior.xy, color = 'blue')
+
         while elses < len(data):
             elses = 0
             for j in range(len(data)):
@@ -123,16 +128,22 @@ class env:
                     # if len(routes[j]) == 1:
                     #     plt.scatter(routes[j][-1][0], routes[j][-1][1], color='black')
                     # else:
-                    x_vals = [routes[j][-1][0], routes[j][-2][0]] #point_to_plot[0][0], point_to_plot[1][0]
-                    y_vals = [routes[j][-1][1], routes[j][-2][1]]
-                    point_to_plot = routes[j].pop()
-                    plt.scatter(point_to_plot[0], point_to_plot[1], color='black')
-                    plt.plot(x_vals, y_vals, color=colours[j])
+                    try:
+                        x_vals = [routes[j][-1][0], routes[j][-2][0]] #point_to_plot[0][0], point_to_plot[1][0]
+                        y_vals = [routes[j][-1][1], routes[j][-2][1]]
+                        point_to_plot = routes[j].pop()
+                        plt.scatter(point_to_plot[0], point_to_plot[1], color='black')
+                        plt.plot(x_vals, y_vals, color=colours[j])
+                    except:
+                        elses += 1
                 else:
-                    elses += 1
                     continue
-            plt.savefig('fig_' + str(step) + '.png')
+            frame_name = 'fig_' + str(step) + '.png'
+            self.frames.append(frame_name)
+            plt.savefig(frame_name)
             step += 1
+
+        self.make_gif()
 
     def manual_reverse(self, arr):
         reverse_arr = []
@@ -142,6 +153,16 @@ class env:
             arr.pop()
         return reverse_arr
 
+    def make_gif(self):
+        with imageio.get_writer('agents{}_energy{}.gif'.format(NUM_AGENTS, self.energy), mode='I', duration=0.5) as writer:
+            for frame in self.frames:
+                image = imageio.imread(frame)
+                writer.append_data(image)
+        print('gif complete\n')
+
+        # Remove files
+        for filename in self.frames[:-1]:
+            os.remove(filename)
 
 
 
