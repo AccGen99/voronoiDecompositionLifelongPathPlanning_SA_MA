@@ -4,12 +4,12 @@ M.Tech Thesis Project @ Systems, Dynamics &amp; Control Lab, IITKGP
 ## TO-DO
 - Re-partitioning in presence of obstacles
 - Unknown map and obstacle location re-partitioning
-- Implementation of paper - Minimum-energy Cornering Trajectory Planning with Self-rotation for Three-wheeled Omni-directional Mobile Robots
-
+- RNN & learning-based path planning
 
 ## MTP-I involves 
 - Re-partitioning for equally distributed centres and almost equal area partitions
 - Improved method of re-partitioning by advancing hyperparameter values continuously
+- RESULTS - Repartition efficiency - 0.747 +- 0.0516; Non-repartition efficiency - 0.703 +- 0.0607 [7 Agents, 1.5 energy each]
 
 ## GIF of 8 centre re-balance
 ![GIF of 8 centre re-balance](https://github.com/AccGen99/voronoiDecompositionLifelongPathPlanning_SA_MA/blob/main/__8centres.gif)
